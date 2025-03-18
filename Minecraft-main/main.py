@@ -15,6 +15,7 @@ HOST = '0.0.0.0'
 PORT = 12345
 FPS = 30
 
+WIDTH, HEIGHT = 600, 400
 PLAYER_SIZE = 20
 
 COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
@@ -127,7 +128,7 @@ class Client:
         app.run()
 
 
-class VoxelEngine:
+class VoxelEngine():
     def __init__(self):
         pg.init()
         pg.display.gl_set_attribute(pg.GL_CONTEXT_MAJOR_VERSION, MAJOR_VER)
