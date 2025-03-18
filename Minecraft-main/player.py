@@ -2,10 +2,15 @@ import pygame as pg
 from camera import Camera
 from settings import *
 
-
 class Player(Camera):
     def __init__(self, app, position=PLAYER_POS, yaw=-90, pitch=0):
         self.app = app
+        # Intenta activar el modo relativo para el ratón; si falla, se informa y se utiliza el grab de eventos
+        try:
+            pg.mouse.set_relative(True)
+        except AttributeError:
+            print("Warning: pg.mouse.set_relative no está disponible. Usando pg.event.set_grab(True) en su lugar.")
+            pg.event.set_grab(True)
         super().__init__(position, yaw, pitch)
 
     def update(self):
@@ -14,7 +19,7 @@ class Player(Camera):
         super().update()
 
     def handle_event(self, event):
-        # adding and removing voxels with clicks
+        # Agregar o eliminar voxeles según se hagan clics del ratón
         if event.type == pg.MOUSEBUTTONDOWN:
             voxel_handler = self.app.scene.world.voxel_handler
             if event.button == 1:
@@ -24,10 +29,9 @@ class Player(Camera):
 
     def mouse_control(self):
         mouse_dx, mouse_dy = pg.mouse.get_rel()
-        if mouse_dx:
-            self.rotate_yaw(delta_x=mouse_dx * MOUSE_SENSITIVITY)
-        if mouse_dy:
-            self.rotate_pitch(delta_y=mouse_dy * MOUSE_SENSITIVITY)
+        # Se aplican los desplazamientos multiplicados por la sensibilidad
+        self.rotate_yaw(delta_x=mouse_dx * MOUSE_SENSITIVITY)
+        self.rotate_pitch(delta_y=mouse_dy * MOUSE_SENSITIVITY)
 
     def keyboard_control(self):
         key_state = pg.key.get_pressed()
