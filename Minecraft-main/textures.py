@@ -8,9 +8,9 @@ class Textures:
         self.ctx = app.ctx
 
         # load textures
-        self.texture_0 = self.load('frame.png')
-        self.texture_1 = self.load('water.png')
-        self.texture_array_0 = self.load('tex_array_0.png', is_tex_array=True)
+        self.texture_0 = self.load('assets/frame.png')
+        self.texture_1 = self.load('assets/water.png')
+        self.texture_array_0 = self.load('assets/tex_array_0.png', is_tex_array=True)
 
         # assign texture unit
         self.texture_0.use(location=0)

@@ -15,7 +15,6 @@ HOST = '0.0.0.0'
 PORT = 12345
 FPS = 30
 
-WIDTH, HEIGHT = 600, 400
 PLAYER_SIZE = 20
 
 COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
@@ -101,7 +100,8 @@ class Client:
             exit()
 
         pg.init()
-        self.screen = pg.display.set_mode((WIDTH, HEIGHT))
+        info = pg.display.Info()
+        self.screen = pg.display.set_mode((info.current_w, info.current_h), pg.FULLSCREEN)
         pg.display.set_caption("Juego Multijugador")
         self.clock = pg.time.Clock()
 
