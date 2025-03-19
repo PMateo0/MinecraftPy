@@ -14,6 +14,7 @@ class NetworkManager:
     """
     def __init__(self, is_server, sock, world, connections=None):
         """
+        Los parametros que estamos recibiendo en el init son:
         :param is_server: True si la instancia es del lado del servidor.
         :param sock: 
             - En modo cliente, es el socket conectado al servidor.
@@ -123,3 +124,4 @@ class NetworkManager:
         except Exception:
             pass
         self.thread.join()
+

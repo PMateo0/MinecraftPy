@@ -207,29 +207,32 @@ class VoxelEngine:
 if __name__ == "__main__":
     choice = input("¿Quieres iniciar como servidor (s) o cliente (c)? ").strip().lower()
 
-    if choice == 's':
-        # Modo servidor: crear el mundo autoritativo y arrancar el servidor de red.
-        engine = VoxelEngine()
-        server = Server()
-        # Crear dummy socket para el NetworkManager en servidor
-        dummy_sock = DummySocket()
-        net_manager = NetworkManager(is_server=True, sock=dummy_sock, world=engine.world, connections=server.connections)
-        
-        # Hilo para aceptar conexiones
-        threading.Thread(target=server.start, daemon=True).start()
-        
-        # Hilo para enviar actualizaciones periódicas del mundo a todos los clientes
-        def broadcast_loop():
-            while True:
-                net_manager.send_world_update()
-                time.sleep(0.1)  # Actualiza 10 veces por segundo
-        threading.Thread(target=broadcast_loop, daemon=True).start()
-        
-        # Ejecutar el loop principal del VoxelEngine (simulación y renderizado del mundo)
-        engine.run()
-    elif choice == 'c':
-        host = input("Introduce la IP del servidor (ej: 192.168.1.10): ").strip()
-        client_obj = Client(host)
-        client_obj.runVoxelEngine()
-    else:
+# En la sección del modo servidor:
+if choice == 's':
+    engine = VoxelEngine()
+    server = Server()
+    dummy_sock = DummySocket()
+    net_manager = NetworkManager(is_server=True, sock=dummy_sock, world=engine.scene.world, connections=server.connections)
+    
+    threading.Thread(target=server.start, daemon=True).start()
+    
+    def broadcast_loop():
+        while True:
+            net_manager.send_world_update()
+            time.sleep(0.1)  # Actualiza 10 veces por segundo
+    threading.Thread(target=broadcast_loop, daemon=True).start()
+    
+    engine.run()
+
+# En la sección del modo cliente:
+elif choice == 'c':
+    host = input("Introduce la IP del servidor (ej: 192.168.1.10): ").strip()
+    client_obj = Client(host)
+    # Dentro de runVoxelEngine, se debe pasar app.scene.world en vez de app.world:
+    # Por ejemplo:
+    # app = VoxelEngine()
+    # net_manager = NetworkManager(is_server=False, sock=self.client, world=app.scene.world)
+    client_obj.runVoxelEngine()
+
+else:
         print("S o c te he dicho...!. Ejecuta nuevamente e ingresa 's' para servidor o 'c' para cliente.")
