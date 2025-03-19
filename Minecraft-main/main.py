@@ -9,7 +9,10 @@ from textures import Textures
 import socket
 import threading
 import pickle
+import time
 
+# Importar la clase NetworkManager (asumiendo que se encuentra en network_manager.py)
+from network_manager import NetworkManager
 
 HOST = '0.0.0.0'
 PORT = 12345
@@ -20,11 +23,20 @@ PLAYER_SIZE = 20
 
 COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
 
+# --- Definición de DummySocket para el servidor ---
+class DummySocket:
+    def recv(self, bufsize):
+        return b''
+    def sendall(self, data):
+        pass
+    def close(self):
+        pass
 
+# ==================== CLASE SERVIDOR ====================
 class Server:
     def __init__(self):
-        self.players = {} 
-        self.connections = {} 
+        self.players = {}
+        self.connections = []
         self.lock = threading.Lock()
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -35,7 +47,7 @@ class Server:
     def broadcast_positions(self):
         with self.lock:
             data = pickle.dumps(self.players)
-            for conn in self.connections.values():
+            for conn in self.connections:
                 try:
                     conn.sendall(data)
                 except Exception as e:
@@ -44,7 +56,7 @@ class Server:
     def handle_client(self, conn, addr):
         with self.lock:
             self.players[addr] = [WIDTH // 2, HEIGHT // 2]
-            self.connections[addr] = conn
+            self.connections.append(conn)
         
         self.broadcast_positions()
 
@@ -56,13 +68,13 @@ class Server:
 
                 direction = pickle.loads(data)
                 with self.lock:
-                    if direction == 'UP': 
+                    if direction == 'UP':
                         self.players[addr][1] = max(0, self.players[addr][1] - 5)
-                    elif direction == 'DOWN': 
+                    elif direction == 'DOWN':
                         self.players[addr][1] = min(HEIGHT, self.players[addr][1] + 5)
-                    elif direction == 'LEFT': 
+                    elif direction == 'LEFT':
                         self.players[addr][0] = max(0, self.players[addr][0] - 5)
-                    elif direction == 'RIGHT': 
+                    elif direction == 'RIGHT':
                         self.players[addr][0] = min(WIDTH, self.players[addr][0] + 5)
                 
                 self.broadcast_positions()
@@ -72,8 +84,10 @@ class Server:
         finally:
             with self.lock:
                 print(f"[DESCONECTADO] {addr} se ha desconectado.")
-                del self.players[addr]
-                del self.connections[addr]
+                if addr in self.players:
+                    del self.players[addr]
+                if conn in self.connections:
+                    self.connections.remove(conn)
             self.broadcast_positions()
             conn.close()
 
@@ -87,8 +101,7 @@ class Server:
             except Exception as e:
                 print(f"[ERROR] Al aceptar conexión: {e}")
 
-
-# ==================== PARTE CLIENTE ====================
+# ==================== CLASE CLIENTE ====================
 class Client:
     def __init__(self, host):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -125,10 +138,12 @@ class Client:
 
     def runVoxelEngine(self):
         app = VoxelEngine()
+        # Instanciar NetworkManager en modo cliente con el socket del cliente
+        net_manager = NetworkManager(is_server=False, sock=self.client, world=app.world)
         app.run()
 
-
-class VoxelEngine():
+# ==================== CLASE VOXELENGINE ====================
+class VoxelEngine:
     def __init__(self):
         pg.init()
         pg.display.gl_set_attribute(pg.GL_CONTEXT_MAJOR_VERSION, MAJOR_VER)
@@ -137,6 +152,7 @@ class VoxelEngine():
         pg.display.gl_set_attribute(pg.GL_DEPTH_SIZE, DEPTH_SIZE)
         pg.display.gl_set_attribute(pg.GL_MULTISAMPLESAMPLES, NUM_SAMPLES)
 
+        # Nota: Asumimos que WIN_RES es convertible o se usa directamente aquí
         pg.display.set_mode(WIN_RES, flags=pg.OPENGL | pg.DOUBLEBUF)
         self.ctx = mgl.create_context()
 
@@ -187,17 +203,33 @@ class VoxelEngine():
         pg.quit()
         sys.exit()
 
-
-# ==================== EJECUTAMOS ====================
+# ==================== EJECUCIÓN PRINCIPAL ====================
 if __name__ == "__main__":
     choice = input("¿Quieres iniciar como servidor (s) o cliente (c)? ").strip().lower()
 
     if choice == 's':
+        # Modo servidor: crear el mundo autoritativo y arrancar el servidor de red.
+        engine = VoxelEngine()
         server = Server()
-        server.start()
+        # Crear dummy socket para el NetworkManager en servidor
+        dummy_sock = DummySocket()
+        net_manager = NetworkManager(is_server=True, sock=dummy_sock, world=engine.world, connections=server.connections)
+        
+        # Hilo para aceptar conexiones
+        threading.Thread(target=server.start, daemon=True).start()
+        
+        # Hilo para enviar actualizaciones periódicas del mundo a todos los clientes
+        def broadcast_loop():
+            while True:
+                net_manager.send_world_update()
+                time.sleep(0.1)  # Actualiza 10 veces por segundo
+        threading.Thread(target=broadcast_loop, daemon=True).start()
+        
+        # Ejecutar el loop principal del VoxelEngine (simulación y renderizado del mundo)
+        engine.run()
     elif choice == 'c':
         host = input("Introduce la IP del servidor (ej: 192.168.1.10): ").strip()
-        client = Client(host)
-        client.runVoxelEngine()
+        client_obj = Client(host)
+        client_obj.runVoxelEngine()
     else:
         print("S o c te he dicho...!. Ejecuta nuevamente e ingresa 's' para servidor o 'c' para cliente.")
