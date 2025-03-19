@@ -53,7 +53,12 @@ MOUSE_SENSITIVITY = 0.002
 # colors
 BG_COLOR = glm.vec3(0.58, 0.83, 0.99)
 
-# textures
+# Atlas de texturas para los bloques
+ATLAS_TILE_SIZE = 16   
+ATLAS_COLS = 4         
+ATLAS_ROWS = 2         
+
+# Bloques
 SAND = 1
 GRASS = 2
 DIRT = 3
