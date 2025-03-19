@@ -147,15 +147,16 @@ class Client:
         original_set_voxel = vh.set_voxel
         def patched_set_voxel():
             original_set_voxel()
-            # Si se realizó una modificación, se asume que vh.voxel_world_pos y vh.voxel_index se han actualizado
-            # Calcular el chunk_index a partir de la posición mundial del voxel
+            # Verificar que se haya detectado un voxel (voxel_world_pos no es None)
+            if vh.voxel_world_pos is None:
+                return
             cx = int(vh.voxel_world_pos.x) // CHUNK_SIZE
             cy = int(vh.voxel_world_pos.y) // CHUNK_SIZE
             cz = int(vh.voxel_world_pos.z) // CHUNK_SIZE
             chunk_index = cx + WORLD_W * cz + WORLD_AREA * cy
-            # Enviar la actualización al servidor. En remove_voxel se envía 0 (vacío),
-            # y en add_voxel se envía vh.new_voxel_id (por ejemplo, DIRT)
+            # En función de la acción (añadir o quitar), se envía el nuevo ID (0 para eliminar, o vh.new_voxel_id para añadir)
             net_manager.send_voxel_update(chunk_index, vh.voxel_index, vh.new_voxel_id)
+
         vh.set_voxel = patched_set_voxel
 
         app.run()
