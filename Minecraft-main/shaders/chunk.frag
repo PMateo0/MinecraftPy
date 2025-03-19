@@ -17,24 +17,22 @@ flat in int face_id;
 flat in int voxel_id;
 
 void main() {
-    // Usar la UV recibida directamente
     vec2 face_uv = uv;
-
-    // Muestrear la textura del array usando el voxel_id como índice de capa.
-    // Si fuera necesario ajustar (por ejemplo, si voxel_id es 1-indexado), se podría restar 1.
+    // En este ejemplo, se asume que la UV se pasa directamente.
+    // Si fuese necesario ajustar la UV para el atlas, se puede modificar aquí.
     vec3 tex_col = texture(u_texture_array_0, vec3(face_uv, float(voxel_id))).rgb;
     tex_col = pow(tex_col, gamma);
-
     tex_col *= shading;
-
-    // Efecto de agua si se está por debajo del nivel de agua
-    if (frag_world_pos.y < water_line)
+    
+    // Efecto bajo el nivel de agua
+    if (frag_world_pos.y < water_line) {
         tex_col *= vec3(0.0, 0.3, 1.0);
-
-    // Efecto de niebla
+    }
+    
+    // Aplicar efecto de niebla
     float fog_dist = gl_FragCoord.z / gl_FragCoord.w;
     tex_col = mix(tex_col, bg_color, (1.0 - exp2(-0.00001 * fog_dist * fog_dist)));
-
+    
     tex_col = pow(tex_col, inv_gamma);
     fragColor = vec4(tex_col, 1.0);
 }
