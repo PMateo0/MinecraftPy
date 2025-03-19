@@ -1,7 +1,6 @@
 from meshes.base_mesh import BaseMesh
 from meshes.chunk_mesh_builder import build_chunk_mesh
 
-
 class ChunkMesh(BaseMesh):
     def __init__(self, chunk):
         super().__init__()
@@ -10,9 +9,10 @@ class ChunkMesh(BaseMesh):
         self.ctx = self.app.ctx
         self.program = self.app.shader_program.chunk
 
-        self.vbo_format = '1u4'
-        self.format_size = sum(int(fmt[:1]) for fmt in self.vbo_format.split())
-        self.attrs = ('packed_data',)
+        # Formato: 1 unsigned int (4 bytes) + 2 floats (8 bytes) = 12 bytes por vértice
+        self.vbo_format = '1u4 2f'
+        self.format_size = 12  # 12 bytes por vértice
+        self.attrs = ('packed_data', 'in_uv')
         self.vao = self.get_vao()
 
     def rebuild(self):
@@ -25,4 +25,4 @@ class ChunkMesh(BaseMesh):
             chunk_pos=self.chunk.position,
             world_voxels=self.chunk.world.voxels
         )
-        return mesh
+        return mesh.tobytes()

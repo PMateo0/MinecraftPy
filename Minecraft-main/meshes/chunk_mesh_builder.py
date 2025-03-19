@@ -34,30 +34,21 @@ def get_ao(local_pos, world_pos, world_voxels, plane):
         f = is_void((x + 1, y + 1, z), (wx + 1, wy + 1, wz), world_voxels)
         g = is_void((x    , y + 1, z), (wx    , wy + 1, wz), world_voxels)
         h = is_void((x - 1, y + 1, z), (wx - 1, wy + 1, wz), world_voxels)
-    ao = (a + b + c), (g + h + a), (e + f + g), (c + d + e)
+    ao = (a + b + c, g + h + a, e + f + g, c + d + e)
     return ao
 
 @njit
 def pack_data(x, y, z, voxel_id, face_id, ao_id, flip_id):
     # x: 6bit, y: 6bit, z: 6bit, voxel_id: 8bit, face_id: 3bit, ao_id: 2bit, flip_id: 1bit
     a, b, c, d, e, f, g = x, y, z, voxel_id, face_id, ao_id, flip_id
-
     b_bit, c_bit, d_bit, e_bit, f_bit, g_bit = 6, 6, 8, 3, 2, 1
     fg_bit = f_bit + g_bit
     efg_bit = e_bit + fg_bit
     defg_bit = d_bit + efg_bit
     cdefg_bit = c_bit + defg_bit
     bcdefg_bit = b_bit + cdefg_bit
-
-    packed_data = (
-        a << bcdefg_bit |
-        b << cdefg_bit |
-        c << defg_bit |
-        d << efg_bit |
-        e << fg_bit |
-        f << g_bit | g
-    )
-    return packed_data
+    packed = (a << bcdefg_bit) | (b << cdefg_bit) | (c << defg_bit) | (d << efg_bit) | (e << fg_bit) | (f << g_bit) | g
+    return packed
 
 @njit
 def get_chunk_index(world_voxel_pos):
@@ -67,8 +58,7 @@ def get_chunk_index(world_voxel_pos):
     cz = wz // CHUNK_SIZE
     if not (0 <= cx < WORLD_W and 0 <= cy < WORLD_H and 0 <= cz < WORLD_D):
         return -1
-    index = cx + WORLD_W * cz + WORLD_AREA * cy
-    return index
+    return cx + WORLD_W * cz + WORLD_AREA * cy
 
 @njit
 def is_void(local_voxel_pos, world_voxel_pos, world_voxels):
@@ -84,22 +74,18 @@ def is_void(local_voxel_pos, world_voxel_pos, world_voxels):
 
 @njit
 def add_data(vertex_data, index, *vertices):
-    for vertex in vertices:
-        vertex_data[index] = vertex
+    for v in vertices:
+        vertex_data[index] = v
         index += 1
     return index
 
 def build_chunk_mesh(chunk_voxels, format_size, chunk_pos, world_voxels):
     """
-    Construye la malla de un chunk generando para cada vértice:
-      - packed_data (uint32) que contiene posición, voxel_id, face, etc.
-      - in_uv (2 floats) que son las coordenadas UV locales de la cara.
-    Se devuelve un array estructurado con dos campos: 'packed_data' y 'in_uv'.
+    Genera la malla del chunk. Por cada vértice se crea una tupla: (packed_data, (u, v)).
+    Se devuelve un array estructurado con dtype [('packed_data', uint32), ('in_uv', float32, (2,))]
     """
-    # Usaremos una lista de Python para acumular los vértices.
-    # Cada vértice será una tupla: (packed_data, (u, v))
     vertices = []
-    # Coordenadas UV locales estándar para un cuadrado (0,0) a (1,1)
+    # UV locales estándar para un cuadrado
     uv0 = (0.0, 0.0)
     uv1 = (1.0, 0.0)
     uv2 = (1.0, 1.0)
@@ -112,8 +98,6 @@ def build_chunk_mesh(chunk_voxels, format_size, chunk_pos, world_voxels):
                 voxel_id = chunk_voxels[voxel_index]
                 if voxel_id == 0:
                     continue
-                
-                # Posición mundial del voxel
                 cx, cy, cz = chunk_pos
                 wx = x + cx * CHUNK_SIZE
                 wy = y + cy * CHUNK_SIZE
@@ -121,7 +105,7 @@ def build_chunk_mesh(chunk_voxels, format_size, chunk_pos, world_voxels):
                 
                 # Top face (face_id = 0)
                 if is_void((x, y+1, z), (wx, wy+1, wz), world_voxels):
-                    ao = get_ao((x, y+1, z), (wx, wy+1, wz), world_voxels, plane='Y')
+                    ao = get_ao((x, y+1, z), (wx, wy+1, wz), world_voxels, 'Y')
                     flip_id = (ao[1] + ao[3]) > (ao[0] + ao[2])
                     v0 = pack_data(x, y+1, z, voxel_id, 0, ao[0], flip_id)
                     v1 = pack_data(x+1, y+1, z, voxel_id, 0, ao[1], flip_id)
@@ -144,7 +128,7 @@ def build_chunk_mesh(chunk_voxels, format_size, chunk_pos, world_voxels):
                 
                 # Bottom face (face_id = 1)
                 if is_void((x, y-1, z), (wx, wy-1, wz), world_voxels):
-                    ao = get_ao((x, y-1, z), (wx, wy-1, wz), world_voxels, plane='Y')
+                    ao = get_ao((x, y-1, z), (wx, wy-1, wz), world_voxels, 'Y')
                     flip_id = (ao[1] + ao[3]) > (ao[0] + ao[2])
                     v0 = pack_data(x, y, z, voxel_id, 1, ao[0], flip_id)
                     v1 = pack_data(x+1, y, z, voxel_id, 1, ao[1], flip_id)
@@ -167,7 +151,7 @@ def build_chunk_mesh(chunk_voxels, format_size, chunk_pos, world_voxels):
                 
                 # Right face (face_id = 2)
                 if is_void((x+1, y, z), (wx+1, wy, wz), world_voxels):
-                    ao = get_ao((x+1, y, z), (wx+1, wy, wz), world_voxels, plane='X')
+                    ao = get_ao((x+1, y, z), (wx+1, wy, wz), world_voxels, 'X')
                     flip_id = (ao[1] + ao[3]) > (ao[0] + ao[2])
                     v0 = pack_data(x+1, y, z, voxel_id, 2, ao[0], flip_id)
                     v1 = pack_data(x+1, y+1, z, voxel_id, 2, ao[1], flip_id)
@@ -190,7 +174,7 @@ def build_chunk_mesh(chunk_voxels, format_size, chunk_pos, world_voxels):
                 
                 # Left face (face_id = 3)
                 if is_void((x-1, y, z), (wx-1, wy, wz), world_voxels):
-                    ao = get_ao((x-1, y, z), (wx-1, wy, wz), world_voxels, plane='X')
+                    ao = get_ao((x-1, y, z), (wx-1, wy, wz), world_voxels, 'X')
                     flip_id = (ao[1] + ao[3]) > (ao[0] + ao[2])
                     v0 = pack_data(x, y, z, voxel_id, 3, ao[0], flip_id)
                     v1 = pack_data(x, y+1, z, voxel_id, 3, ao[1], flip_id)
@@ -213,7 +197,7 @@ def build_chunk_mesh(chunk_voxels, format_size, chunk_pos, world_voxels):
                 
                 # Back face (face_id = 4)
                 if is_void((x, y, z-1), (wx, wy, wz-1), world_voxels):
-                    ao = get_ao((x, y, z-1), (wx, wy, wz-1), world_voxels, plane='Z')
+                    ao = get_ao((x, y, z-1), (wx, wy, wz-1), world_voxels, 'Z')
                     flip_id = (ao[1] + ao[3]) > (ao[0] + ao[2])
                     v0 = pack_data(x, y, z, voxel_id, 4, ao[0], flip_id)
                     v1 = pack_data(x, y+1, z, voxel_id, 4, ao[1], flip_id)
@@ -236,7 +220,7 @@ def build_chunk_mesh(chunk_voxels, format_size, chunk_pos, world_voxels):
                 
                 # Front face (face_id = 5)
                 if is_void((x, y, z+1), (wx, wy, wz+1), world_voxels):
-                    ao = get_ao((x, y, z+1), (wx, wy, wz+1), world_voxels, plane='Z')
+                    ao = get_ao((x, y, z+1), (wx, wy, wz+1), world_voxels, 'Z')
                     flip_id = (ao[1] + ao[3]) > (ao[0] + ao[2])
                     v0 = pack_data(x, y, z+1, voxel_id, 5, ao[0], flip_id)
                     v1 = pack_data(x, y+1, z+1, voxel_id, 5, ao[1], flip_id)
@@ -257,7 +241,6 @@ def build_chunk_mesh(chunk_voxels, format_size, chunk_pos, world_voxels):
                         vertices.append((v3, uv3))
                         vertices.append((v2, uv2))
                         
-    # Definir el dtype de salida: un campo 'packed_data' (uint32) y un campo 'in_uv' (2 float32)
     dtype = np.dtype([('packed_data', np.uint32), ('in_uv', np.float32, (2,))])
     vertex_array = np.array(vertices, dtype=dtype)
     return vertex_array
