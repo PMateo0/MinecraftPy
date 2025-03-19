@@ -140,7 +140,24 @@ class Client:
         app = VoxelEngine()
         # Instanciar NetworkManager en modo cliente usando la instancia del mundo en app.scene.world
         net_manager = NetworkManager(is_server=False, sock=self.client, world=app.scene.world)
-        app.net_manager = net_manager  # Guardar la referencia para que otras partes (p.ej., VoxelHandler) puedan usarla
+        app.net_manager = net_manager  # Guardar la referencia para usarla desde otros módulos (por ejemplo, VoxelHandler)
+
+        # Patching del método set_voxel en VoxelHandler para enviar la actualización al servidor
+        vh = app.scene.world.voxel_handler
+        original_set_voxel = vh.set_voxel
+        def patched_set_voxel():
+            original_set_voxel()
+            # Si se realizó una modificación, se asume que vh.voxel_world_pos y vh.voxel_index se han actualizado
+            # Calcular el chunk_index a partir de la posición mundial del voxel
+            cx = int(vh.voxel_world_pos.x) // CHUNK_SIZE
+            cy = int(vh.voxel_world_pos.y) // CHUNK_SIZE
+            cz = int(vh.voxel_world_pos.z) // CHUNK_SIZE
+            chunk_index = cx + WORLD_W * cz + WORLD_AREA * cy
+            # Enviar la actualización al servidor. En remove_voxel se envía 0 (vacío),
+            # y en add_voxel se envía vh.new_voxel_id (por ejemplo, DIRT)
+            net_manager.send_voxel_update(chunk_index, vh.voxel_index, vh.new_voxel_id)
+        vh.set_voxel = patched_set_voxel
+
         app.run()
 
 # ==================== CLASE VOXELENGINE ====================
